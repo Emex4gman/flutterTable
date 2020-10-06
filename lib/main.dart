@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart';
 import 'package:mybloc/datatabke/data.dart';
 import 'package:mybloc/datatabke/dataModle.dart';
 
@@ -29,12 +32,32 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  @override
-  void dispose() {
-    super.dispose();
+  bool isLoading = true;
+  bool hasError = false;
+
+  Future loadInternatData() async {
+    try {
+      setState(() {
+        isLoading = true;
+        hasError = false;
+      });
+      final res = await get("http://gorals-flutter-test.herokuapp.com/");
+      Map resData = jsonDecode(res.body);
+      model = DataModel.fromMap(resData);
+      print(model.data);
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print(e);
+      setState(() {
+        isLoading = false;
+        hasError = true;
+      });
+    }
   }
 
-  DataModel model = DataModel.fromMap(mydata);
+  DataModel model; //= DataModel.fromMap(mydata);
   final List dat = mydata["data"];
 
   List<TableRow> returnData(List<Shift> shift, StaffRoster staffRoster,
@@ -57,48 +80,58 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    loadInternatData();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                ListView.builder(
-                  itemCount: model.data.length,
-                  shrinkWrap: true,
-                  physics: NeverScrollableScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    var content = model.data[index];
+          child: isLoading
+              ? Center(child: CircularProgressIndicator())
+              : hasError
+                  ? Center(child: Text("AN ERROR HAS OCCOURED"))
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        ListView.builder(
+                          itemCount: model.data.length,
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          itemBuilder: (context, index) {
+                            var content = model.data[index];
 
-                    return Table(
-                      border: TableBorder.all(),
-                      columnWidths: {0: FractionColumnWidth(.2)},
-                      children: [
-                        ...content.openingDays.map(
-                          (e) {
-                            return TableRow(children: [
-                              Text("$e"),
-                              Table(
+                            return Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Table(
                                 border: TableBorder.all(),
+                                columnWidths: {0: FractionColumnWidth(.2)},
                                 children: [
-                                  ...returnData(
-                                      content.shifts, content.staffRoster,
-                                      identity: e)
+                                  ...content.openingDays.map(
+                                    (e) {
+                                      return TableRow(children: [
+                                        Text("$e"),
+                                        Table(
+                                          border: TableBorder.all(),
+                                          children: [
+                                            ...returnData(content.shifts,
+                                                content.staffRoster,
+                                                identity: e)
+                                          ],
+                                        ),
+                                      ]);
+                                    },
+                                  ).toList()
                                 ],
                               ),
-                            ]);
+                            );
                           },
-                        ).toList()
+                        )
                       ],
-                    );
-                  },
-                )
-              ],
-            ),
-          ),
+                    ),
         ),
       ),
     );
